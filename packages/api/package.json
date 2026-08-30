@@ -1,0 +1,26 @@
+{
+  "name": "@sampla/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -b",
+    "start": "node dist/server.js",
+    "clean": "rimraf dist .tsbuildinfo"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.1",
+    "@sampla/shared": "workspace:*",
+    "fastify": "^5.1.0",
+    "nanoid": "^5.0.9",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "rimraf": "^6.0.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "sampla",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n api,ui -c cyan,magenta \"pnpm --filter @sampla/api dev\" \"pnpm --filter @sampla/ui dev\"",
+    "build": "pnpm -r build",
+    "typecheck": "tsc -b",
+    "clean": "tsc -b --clean && rimraf packages/*/dist"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@9.12.3"
+}
