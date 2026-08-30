@@ -5,6 +5,8 @@ import { useAudioEngine } from "../engine/useAudioEngine.js";
 import { useSampleEngine } from "../engine/useSampleEngine.js";
 import { useSamples } from "../samples/store.js";
 import { SamplesPanel } from "../samples/SamplesPanel.js";
+import { RecordingsPanel } from "../recordings/RecordingsPanel.js";
+import { useRecordings } from "../recordings/store.js";
 import { Waveform } from "./Waveform.js";
 
 const isEditable = (el: EventTarget | null): boolean => {
@@ -37,10 +39,12 @@ export function TrackView() {
   const addSample = useSamples((s) => s.addSample);
   const samples = useSamples((s) => (track ? s.byTrack[track.id] ?? EMPTY : EMPTY));
   const sampleEngine = useSampleEngine(track?.id ?? null);
+  const hydrateRecordings = useRecordings((s) => s.hydrate);
 
   useEffect(() => {
     void hydrate();
-  }, [hydrate]);
+    void hydrateRecordings();
+  }, [hydrate, hydrateRecordings]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -142,6 +146,7 @@ export function TrackView() {
         ready={sampleEngine.ready}
         onTrigger={(s) => sampleEngine.play(s)}
       />
+      <RecordingsPanel trackId={track.id} />
     </section>
   );
 }

@@ -31,9 +31,30 @@ export const Sample = z.object({
   gain: z.number().default(1),
   name: z.string().optional(),
   padKey: PadKey,
+  // When true, triggering another sample does not choke this one; it plays to
+  // its region end regardless of subsequent triggers.
+  playThrough: z.boolean().optional(),
   createdAt: z.string(),
 });
 export type Sample = z.infer<typeof Sample>;
+
+// One pad press within a recording, timestamped from the start of the take.
+export const TriggerEvent = z.object({
+  tMs: z.number().nonnegative(),
+  sampleId: z.string(),
+  padKey: PadKey,
+});
+export type TriggerEvent = z.infer<typeof TriggerEvent>;
+
+export const Recording = z.object({
+  id: z.string(),
+  trackId: z.string(),
+  name: z.string(),
+  events: z.array(TriggerEvent),
+  durationMs: z.number().nonnegative(),
+  createdAt: z.string(),
+});
+export type Recording = z.infer<typeof Recording>;
 
 export const JobStatus = z.enum(["queued", "running", "done", "error"]);
 export type JobStatus = z.infer<typeof JobStatus>;

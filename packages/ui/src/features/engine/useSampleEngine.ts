@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Sample } from "@sampla/shared";
 import { sampleEngine } from "./sampleEngine.js";
+import { useRecordings } from "../recordings/store.js";
 
 // Prime the AudioContext on the first user gesture anywhere in the window.
 let gestureListenerAttached = false;
@@ -45,6 +46,9 @@ export const useSampleEngine = (trackId: string | null): {
 
   return {
     ready,
-    play: (sample: Sample) => sampleEngine.play(sample.trackId, sample.region, sample.gain),
+    play: (sample: Sample) => {
+      sampleEngine.play(sample.trackId, sample.region, sample.gain, !!sample.playThrough);
+      useRecordings.getState().logTrigger(sample);
+    },
   };
 };

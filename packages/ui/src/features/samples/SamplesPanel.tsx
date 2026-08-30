@@ -14,6 +14,7 @@ export function SamplesPanel({ trackId, samples, ready, onTrigger }: Props) {
   const byPad = new Map<string, Sample>();
   for (const s of samples) byPad.set(s.padKey, s);
   const removeSample = useSamples((s) => s.removeSample);
+  const setPlayThrough = useSamples((s) => s.setPlayThrough);
   const setSelection = useTransport((s) => s.setSelection);
 
   return (
@@ -84,6 +85,25 @@ export function SamplesPanel({ trackId, samples, ready, onTrigger }: Props) {
                 </span>
                 {s && (
                   <div style={{ display: "flex", gap: 4 }}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void setPlayThrough(trackId, s.id, !s.playThrough);
+                      }}
+                      title={
+                        s.playThrough
+                          ? "Plays through subsequent triggers — click to disable"
+                          : "Cut off when another sample plays — click to let it ring"
+                      }
+                      style={{
+                        ...pillBtn,
+                        color: s.playThrough ? color : "#4a5265",
+                        fontWeight: s.playThrough ? 700 : 400,
+                      }}
+                    >
+                      ∞
+                    </button>
                     <button
                       type="button"
                       onClick={(e) => {

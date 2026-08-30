@@ -86,7 +86,7 @@ class SampleEngine {
     return p;
   }
 
-  play(trackId: string, region: Region, gain = 1): void {
+  play(trackId: string, region: Region, gain = 1, playThrough = false): void {
     if (!this.node || !this.tracksLoaded.has(trackId)) return;
     const sr = this.trackSampleRate || this.ctx?.sampleRate || 48000;
     const startFrame = Math.max(0, Math.floor(region.startSec * sr));
@@ -97,6 +97,7 @@ class SampleEngine {
       startFrame,
       endFrame,
       gain,
+      playThrough,
     });
   }
 

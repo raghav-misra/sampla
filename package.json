@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -n api,ui -c cyan,magenta \"pnpm --filter @sampla/api dev\" \"pnpm --filter @sampla/ui dev\"",
+    "predev": "pnpm --filter @sampla/shared build",
+    "dev": "concurrently -k -n shared,api,ui -c yellow,cyan,magenta \"pnpm --filter @sampla/shared dev\" \"pnpm --filter @sampla/api dev\" \"pnpm --filter @sampla/ui dev\"",
     "build": "pnpm -r build",
     "typecheck": "tsc -b",
     "clean": "tsc -b --clean && rimraf packages/*/dist"

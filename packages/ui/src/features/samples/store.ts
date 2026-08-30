@@ -10,6 +10,7 @@ interface SamplesState {
   hydrate: () => Promise<void>;
   addSample: (trackId: string, region: Region) => Promise<Sample | null>;
   removeSample: (trackId: string, sampleId: string) => Promise<void>;
+  setPlayThrough: (trackId: string, sampleId: string, value: boolean) => Promise<void>;
   clearForTrack: (trackId: string) => Sample[];
 }
 
@@ -63,6 +64,16 @@ export const useSamples = create<SamplesState>((set, get) => ({
     await deleteSample(sampleId);
     set((s) => {
       const arr = (s.byTrack[trackId] ?? []).filter((x) => x.id !== sampleId);
+      return { byTrack: { ...s.byTrack, [trackId]: arr } };
+    });
+  },
+  setPlayThrough: async (trackId, sampleId, value) => {
+    const current = (get().byTrack[trackId] ?? []).find((x) => x.id === sampleId);
+    if (!current) return;
+    const updated: Sample = { ...current, playThrough: value };
+    await putSample(updated);
+    set((s) => {
+      const arr = (s.byTrack[trackId] ?? []).map((x) => (x.id === sampleId ? updated : x));
       return { byTrack: { ...s.byTrack, [trackId]: arr } };
     });
   },
