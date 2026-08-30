@@ -1,7 +1,8 @@
 import { create } from "zustand";
-import type { Recording, Sample, TriggerEvent } from "@sampla/shared";
+import type { Recording, Slice, TriggerEvent } from "@sampla/shared";
 import { sampleEngine } from "../engine/sampleEngine.js";
-import { useSamples } from "../samples/store.js";
+import { useSlices } from "../slices/store.js";
+import { useProjects } from "../projects/store.js";
 import {
   deleteRecording,
   loadAllRecordings,
@@ -34,7 +35,7 @@ interface RecordingsState {
   startRecording: (trackId: string) => void;
   stopRecording: () => Promise<Recording | null>;
   cancelRecording: () => void;
-  logTrigger: (sample: Sample) => void;
+  logTrigger: (slice: Slice) => void;
   removeRecording: (trackId: string, id: string) => Promise<void>;
   renameRecording: (trackId: string, id: string, name: string) => Promise<void>;
   moveEvent: (trackId: string, recordingId: string, eventIndex: number, tMs: number) => void;
@@ -51,7 +52,7 @@ const nextTakeName = (existing: Recording[]): string => {
   let max = 0;
   for (const r of existing) {
     const m = /^Take (\d+)$/.exec(r.name);
-    if (m) max = Math.max(max, parseInt(m[1], 10));
+    if (m?.[1]) max = Math.max(max, parseInt(m[1], 10));
   }
   return `Take ${Math.max(max + 1, existing.length + 1)}`;
 };
@@ -74,7 +75,7 @@ export const useRecordings = create<RecordingsState>((set, get) => ({
       }
       arr.push(r);
     }
-    for (const k of Object.keys(byTrack)) byTrack[k] = sortRecordings(byTrack[k]);
+    for (const [k, arr] of Object.entries(byTrack)) byTrack[k] = sortRecordings(arr);
     set({ byTrack, hydrated: true });
   },
 
@@ -97,14 +98,14 @@ export const useRecordings = create<RecordingsState>((set, get) => ({
     if (!active) return null;
     const endedAt = performance.now();
     set({ active: null });
-    if (active.events.length === 0) return null;
+    const first = active.events[0];
+    if (!first) return null;
     // Trim the silent lead-in: shift so the first hit lands at t=0.
-    const offset = active.events[0].tMs;
+    const offset = first.tMs;
     const events = active.events.map((ev) => ({ ...ev, tMs: ev.tMs - offset }));
-    const durationMs = Math.max(
-      endedAt - active.startedAt - offset,
-      events[events.length - 1].tMs,
-    );
+    const last = events[events.length - 1];
+    const lastMs = last ? last.tMs : 0;
+    const durationMs = Math.max(endedAt - active.startedAt - offset, lastMs);
     const existing = get().byTrack[active.trackId] ?? [];
     const recording: Recording = {
       id: active.id,
@@ -126,16 +127,16 @@ export const useRecordings = create<RecordingsState>((set, get) => ({
 
   cancelRecording: () => set({ active: null }),
 
-  logTrigger: (sample) => {
+  logTrigger: (slice) => {
     const active = get().active;
-    if (!active || active.trackId !== sample.trackId) return;
+    if (!active || active.trackId !== slice.trackId) return;
     const tMs = performance.now() - active.startedAt;
     set({
       active: {
         ...active,
         events: [
           ...active.events,
-          { tMs, sampleId: sample.id, padKey: sample.padKey },
+          { tMs, sliceId: slice.id, padKey: slice.padKey },
         ],
       },
     });
@@ -216,14 +217,20 @@ export const useRecordings = create<RecordingsState>((set, get) => ({
       .flat()
       .find((r) => r.id === id);
     if (!rec) return;
-    const samplesByTrack = useSamples.getState().byTrack[rec.trackId] ?? [];
-    const sampleById = new Map(samplesByTrack.map((s) => [s.id, s]));
+    // Which Sample (audio buffer) does the recording's Track resolve to?
+    const trackRec = Object.values(useProjects.getState().tracksByProject)
+      .flat()
+      .find((t) => t.id === rec.trackId);
+    if (!trackRec) return;
+    const sampleId = trackRec.sampleId;
+    const slicesForTrack = useSlices.getState().byTrack[rec.trackId] ?? [];
+    const sliceById = new Map(slicesForTrack.map((s) => [s.id, s]));
     const timeouts: number[] = [];
     for (const ev of rec.events) {
       const to = window.setTimeout(() => {
-        const s = sampleById.get(ev.sampleId);
+        const s = sliceById.get(ev.sliceId);
         if (!s) return;
-        sampleEngine.play(s.trackId, s.region, s.gain, !!s.playThrough);
+        sampleEngine.play(sampleId, s.region, s.gain, !!s.playThrough);
       }, ev.tMs);
       timeouts.push(to);
     }

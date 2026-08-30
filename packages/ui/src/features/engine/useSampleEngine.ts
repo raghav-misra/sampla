@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Sample } from "@sampla/shared";
+import type { Slice } from "@sampla/shared";
 import { sampleEngine } from "./sampleEngine.js";
 import { useRecordings } from "../recordings/store.js";
 
@@ -17,38 +17,43 @@ const attachGestureListener = (): void => {
   window.addEventListener("keydown", prime, { once: false });
 };
 
-export const useSampleEngine = (trackId: string | null): {
+// Ensures the audio buffer for `sampleId` is loaded and returns a trigger fn
+// that plays a slice on that sample.
+export const useSampleEngine = (sampleId: string | null): {
   ready: boolean;
-  play: (sample: Sample) => void;
+  play: (slice: Slice) => void;
 } => {
-  const [ready, setReady] = useState<boolean>(trackId ? sampleEngine.isReady(trackId) : false);
+  const [ready, setReady] = useState<boolean>(
+    sampleId ? sampleEngine.isReady(sampleId) : false,
+  );
 
   useEffect(() => {
     attachGestureListener();
-    if (!trackId) {
+    if (!sampleId) {
       setReady(false);
       return;
     }
     let cancelled = false;
-    setReady(sampleEngine.isReady(trackId));
+    setReady(sampleEngine.isReady(sampleId));
     sampleEngine
-      .loadTrack(trackId)
+      .loadSample(sampleId)
       .then(() => {
         if (!cancelled) setReady(true);
       })
       .catch((err: unknown) => {
-        console.error("[sampleEngine] loadTrack failed", err);
+        console.error("[sampleEngine] loadSample failed", err);
       });
     return () => {
       cancelled = true;
     };
-  }, [trackId]);
+  }, [sampleId]);
 
   return {
     ready,
-    play: (sample: Sample) => {
-      sampleEngine.play(sample.trackId, sample.region, sample.gain, !!sample.playThrough);
-      useRecordings.getState().logTrigger(sample);
+    play: (slice: Slice) => {
+      if (!sampleId) return;
+      sampleEngine.play(sampleId, slice.region, slice.gain, !!slice.playThrough);
+      useRecordings.getState().logTrigger(slice);
     },
   };
 };

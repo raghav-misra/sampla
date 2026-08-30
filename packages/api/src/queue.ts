@@ -1,8 +1,8 @@
 import { nanoid } from "nanoid";
-import { Job, Track } from "@sampla/shared";
+import { Job, type Sample } from "@sampla/shared";
 import { putJob, updateJob } from "./store/jobs.js";
-import { loadTrack, saveTrack } from "./store/tracks.js";
-import { ensureTrackDir, trackAudioPath, trackPeaksPath } from "./store/paths.js";
+import { loadSample, saveSample } from "./store/samples.js";
+import { ensureSampleDir, sampleAudioPath, samplePeaksPath } from "./store/paths.js";
 import { downloadAudio, fetchMeta } from "./services/ytdlp.js";
 import { transcodeToOpusWebm } from "./services/ffmpeg.js";
 import { generatePeaks } from "./services/peaks.js";
@@ -39,40 +39,40 @@ const runIngest = async ({ jobId, youtubeUrl }: Task): Promise<void> => {
     const meta = await fetchMeta(youtubeUrl);
     setProgress(0.1);
 
-    const trackId = meta.id;
-    const cached = await loadTrack(trackId);
+    const sampleId = meta.id;
+    const cached = await loadSample(sampleId);
     if (cached) {
-      updateJob(jobId, { status: "done", progress: 1, trackId });
+      updateJob(jobId, { status: "done", progress: 1, sampleId });
       return;
     }
-    await ensureTrackDir(trackId);
+    await ensureSampleDir(sampleId);
 
-    const sourcePath = await downloadAudio(youtubeUrl, trackId, (fraction) => {
+    const sourcePath = await downloadAudio(youtubeUrl, sampleId, (fraction) => {
       setProgress(0.1 + fraction * 0.4);
     });
     setProgress(0.55);
 
-    const audioPath = trackAudioPath(trackId);
+    const audioPath = sampleAudioPath(sampleId);
     await transcodeToOpusWebm(sourcePath, audioPath);
     setProgress(0.75);
 
-    await generatePeaks(sourcePath, meta.durationSec, trackPeaksPath(trackId));
+    await generatePeaks(sourcePath, meta.durationSec, samplePeaksPath(sampleId));
     setProgress(0.95);
 
-    const track: Track = {
-      id: trackId,
+    const sample: Sample = {
+      id: sampleId,
       sourceUrl: meta.webpageUrl,
       title: meta.title,
       durationSec: meta.durationSec,
       sampleRate: 48000,
       channels: 2,
-      audioUrl: `/tracks/${trackId}/audio`,
-      peaksUrl: `/tracks/${trackId}/peaks`,
+      audioUrl: `/samples/${sampleId}/audio`,
+      peaksUrl: `/samples/${sampleId}/peaks`,
       createdAt: new Date().toISOString(),
     };
-    await saveTrack(track);
+    await saveSample(sample);
 
-    updateJob(jobId, { status: "done", progress: 1, trackId });
+    updateJob(jobId, { status: "done", progress: 1, sampleId });
   } catch (err) {
     updateJob(jobId, {
       status: "error",

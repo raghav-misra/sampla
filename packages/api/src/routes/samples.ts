@@ -1,8 +1,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { createReadStream } from "node:fs";
 import { stat, readFile } from "node:fs/promises";
-import { loadTrack } from "../store/tracks.js";
-import { trackAudioPath, trackPeaksPath } from "../store/paths.js";
+import { listSamples, loadSample } from "../store/samples.js";
+import { sampleAudioPath, samplePeaksPath } from "../store/paths.js";
 
 const parseRange = (
   header: string | undefined,
@@ -51,24 +51,31 @@ const sendAudio = async (
   return reply.send(createReadStream(path, { start: range.start, end: range.end }));
 };
 
-export const registerTrackRoutes = (app: FastifyInstance): void => {
-  app.get<{ Params: { id: string } }>("/tracks/:id", async (req, reply) => {
-    const track = await loadTrack(req.params.id);
-    if (!track) {
+export const registerSampleRoutes = (app: FastifyInstance): void => {
+  app.get("/samples", async () => {
+    const samples = await listSamples();
+    // newest first
+    samples.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return samples;
+  });
+
+  app.get<{ Params: { id: string } }>("/samples/:id", async (req, reply) => {
+    const sample = await loadSample(req.params.id);
+    if (!sample) {
       reply.code(404);
       return { error: "not_found" };
     }
-    return track;
+    return sample;
   });
 
-  app.get<{ Params: { id: string } }>("/tracks/:id/audio", async (req, reply) => {
-    const track = await loadTrack(req.params.id);
-    if (!track) {
+  app.get<{ Params: { id: string } }>("/samples/:id/audio", async (req, reply) => {
+    const sample = await loadSample(req.params.id);
+    if (!sample) {
       reply.code(404);
       return { error: "not_found" };
     }
     try {
-      await sendAudio(req, reply, trackAudioPath(req.params.id));
+      await sendAudio(req, reply, sampleAudioPath(req.params.id));
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === "ENOENT") {
         reply.code(404);
@@ -79,9 +86,9 @@ export const registerTrackRoutes = (app: FastifyInstance): void => {
     return reply;
   });
 
-  app.get<{ Params: { id: string } }>("/tracks/:id/peaks", async (req, reply) => {
+  app.get<{ Params: { id: string } }>("/samples/:id/peaks", async (req, reply) => {
     try {
-      const buf = await readFile(trackPeaksPath(req.params.id), "utf8");
+      const buf = await readFile(samplePeaksPath(req.params.id), "utf8");
       reply.header("Content-Type", "application/json");
       return buf;
     } catch (err) {

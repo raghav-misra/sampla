@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Peaks, Region, Sample, Track } from "@sampla/shared";
+import type { Peaks, Region, Sample, Slice } from "@sampla/shared";
 import { clamp, formatTime } from "@sampla/shared";
-import { padPalette } from "../samples/store.js";
+import { padPalette } from "../slices/store.js";
 import { useTransport } from "../engine/store.js";
 
 interface Props {
-  track: Track;
+  trackId: string;
+  sample: Sample;
   peaks: Peaks;
   selection: Region | null;
-  samples: Sample[];
+  slices: Slice[];
+  height?: number;
+  active: boolean;
+  onFocus: () => void;
   onSeek: (t: number) => void;
   onSelect: (r: Region | null) => void;
 }
@@ -24,28 +28,39 @@ const TEXT = "#9aa3b2";
 
 const DRAG_THRESHOLD_PX = 3;
 
-export function Waveform({ track, peaks, selection, samples, onSeek, onSelect }: Props) {
+export function Waveform({
+  trackId,
+  sample,
+  peaks,
+  selection,
+  slices,
+  height = 140,
+  active,
+  onFocus,
+  onSeek,
+  onSelect,
+}: Props) {
   const bgCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
-  const [size, setSize] = useState({ w: 0, h: 180 });
+  const [size, setSize] = useState({ w: 0, h: height });
 
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
     const ro = new ResizeObserver(() => {
-      setSize({ w: el.clientWidth, h: 180 });
+      setSize({ w: el.clientWidth, h: height });
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [height]);
 
   const secPerPx = useMemo(
-    () => (size.w > 0 ? track.durationSec / size.w : 0),
-    [size.w, track.durationSec],
+    () => (size.w > 0 ? sample.durationSec / size.w : 0),
+    [size.w, sample.durationSec],
   );
 
-  // Background layer: waveform + samples + ruler + selection. Redraws only when
+  // Background layer: waveform + slices + ruler + selection. Redraws only when
   // any of these inputs change (NOT on every playhead tick).
   useEffect(() => {
     const cv = bgCanvasRef.current;
@@ -58,8 +73,8 @@ export function Waveform({ track, peaks, selection, samples, onSeek, onSelect }:
     const ctx = cv.getContext("2d");
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    drawBackground(ctx, size.w, size.h, track, peaks, selection, samples);
-  }, [size.w, size.h, track, peaks, selection, samples]);
+    drawBackground(ctx, size.w, size.h, sample.durationSec, peaks, selection, slices);
+  }, [size.w, size.h, sample.durationSec, peaks, selection, slices]);
 
   // Overlay layer: playhead only. Drawn via rAF from the transport store, so
   // playhead updates never re-render React.
@@ -78,11 +93,11 @@ export function Waveform({ track, peaks, selection, samples, onSeek, onSelect }:
     let lastPh = -1;
     let raf = 0;
     const tick = (): void => {
-      const ph = useTransport.getState().playhead;
+      const ph = useTransport.getState().playheadByTrack[trackId] ?? 0;
       if (ph !== lastPh) {
         lastPh = ph;
         ctx.clearRect(0, 0, size.w, size.h);
-        const px = (ph / track.durationSec) * size.w;
+        const px = (ph / sample.durationSec) * size.w;
         ctx.strokeStyle = PLAYHEAD;
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -94,18 +109,19 @@ export function Waveform({ track, peaks, selection, samples, onSeek, onSelect }:
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [size.w, size.h, track.durationSec]);
+  }, [size.w, size.h, sample.durationSec, trackId]);
 
   const clientXToSec = (clientX: number): number => {
     const cv = bgCanvasRef.current;
     if (!cv) return 0;
     const rect = cv.getBoundingClientRect();
     const x = clientX - rect.left;
-    return clamp(x * secPerPx, 0, track.durationSec);
+    return clamp(x * secPerPx, 0, sample.durationSec);
   };
 
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>): void => {
     (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId);
+    onFocus();
     const startX = e.clientX;
     const startSec = clientXToSec(e.clientX);
     let dragged = false;
@@ -139,7 +155,15 @@ export function Waveform({ track, peaks, selection, samples, onSeek, onSelect }:
   };
 
   return (
-    <div ref={wrapRef} style={{ width: "100%", position: "relative" }}>
+    <div
+      ref={wrapRef}
+      style={{
+        width: "100%",
+        position: "relative",
+        outline: active ? `1px solid ${WAVE}` : "1px solid transparent",
+        borderRadius: 6,
+      }}
+    >
       <canvas
         ref={bgCanvasRef}
         onPointerDown={onPointerDown}
@@ -164,25 +188,25 @@ const drawBackground = (
   ctx: CanvasRenderingContext2D,
   w: number,
   h: number,
-  track: Track,
+  durationSec: number,
   peaks: Peaks,
   selection: Region | null,
-  samples: Sample[],
+  slices: Slice[],
 ): void => {
   ctx.fillStyle = BG;
   ctx.fillRect(0, 0, w, h);
 
-  drawRuler(ctx, w, track.durationSec);
+  drawRuler(ctx, w, durationSec);
 
   const waveTop = RULER_H;
   const waveH = h - RULER_H;
   const mid = waveTop + waveH / 2;
 
-  drawSampleBands(ctx, w, waveTop, waveH, track.durationSec, samples);
+  drawSliceBands(ctx, w, waveTop, waveH, durationSec, slices);
 
   if (selection) {
-    const x1 = (selection.startSec / track.durationSec) * w;
-    const x2 = (selection.endSec / track.durationSec) * w;
+    const x1 = (selection.startSec / durationSec) * w;
+    const x2 = (selection.endSec / durationSec) * w;
     ctx.fillStyle = SELECTION;
     ctx.fillRect(x1, waveTop, x2 - x1, waveH);
     ctx.strokeStyle = SELECTION_EDGE;
@@ -197,8 +221,8 @@ const drawBackground = (
 
   drawPeaks(ctx, w, waveH, mid, peaks, selection === null ? WAVE : WAVE_DIM);
   if (selection) {
-    const x1 = (selection.startSec / track.durationSec) * w;
-    const x2 = (selection.endSec / track.durationSec) * w;
+    const x1 = (selection.startSec / durationSec) * w;
+    const x2 = (selection.endSec / durationSec) * w;
     ctx.save();
     ctx.beginPath();
     ctx.rect(x1, waveTop, x2 - x1, waveH);
@@ -242,17 +266,17 @@ const niceStep = (raw: number): number => {
   return candidates[candidates.length - 1] ?? 600;
 };
 
-const drawSampleBands = (
+const drawSliceBands = (
   ctx: CanvasRenderingContext2D,
   w: number,
   top: number,
   h: number,
   duration: number,
-  samples: Sample[],
+  slices: Slice[],
 ): void => {
   ctx.font = "10px ui-monospace, SFMono-Regular, Menlo, monospace";
   ctx.textBaseline = "top";
-  for (const s of samples) {
+  for (const s of slices) {
     const x1 = (s.region.startSec / duration) * w;
     const x2 = (s.region.endSec / duration) * w;
     const width = Math.max(1, x2 - x1);

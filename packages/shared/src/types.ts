@@ -11,7 +11,9 @@ export const Region = z
   .refine((r) => r.endSec > r.startSec, { message: "endSec must be > startSec" });
 export type Region = z.infer<typeof Region>;
 
-export const Track = z.object({
+// A Sample is a YouTube-ingested audio source (the "instrument"). It lives on
+// the server; the UI references it by id.
+export const Sample = z.object({
   id: z.string(),
   sourceUrl: z.string().url(),
   title: z.string(),
@@ -22,26 +24,49 @@ export const Track = z.object({
   peaksUrl: z.string(),
   createdAt: z.string(),
 });
+export type Sample = z.infer<typeof Sample>;
+
+// A Project is a "sampled song" — the top-level user artifact. It contains
+// one or more Tracks.
+export const Project = z.object({
+  id: z.string(),
+  name: z.string(),
+  createdAt: z.string(),
+});
+export type Project = z.infer<typeof Project>;
+
+// A Track is one row in a Project. It binds a single Sample as its instrument
+// and owns its own set of Slices (pad bindings) and Recordings.
+export const Track = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  sampleId: z.string(),
+  name: z.string().optional(),
+  order: z.number(),
+  createdAt: z.string(),
+});
 export type Track = z.infer<typeof Track>;
 
-export const Sample = z.object({
+// A Slice binds a region within a Track's Sample to a pad key. Triggering the
+// pad plays that region.
+export const Slice = z.object({
   id: z.string(),
   trackId: z.string(),
   region: Region,
   gain: z.number().default(1),
   name: z.string().optional(),
   padKey: PadKey,
-  // When true, triggering another sample does not choke this one; it plays to
-  // its region end regardless of subsequent triggers.
+  // When true, subsequent triggers do not choke this slice; it plays to its
+  // region end regardless.
   playThrough: z.boolean().optional(),
   createdAt: z.string(),
 });
-export type Sample = z.infer<typeof Sample>;
+export type Slice = z.infer<typeof Slice>;
 
 // One pad press within a recording, timestamped from the start of the take.
 export const TriggerEvent = z.object({
   tMs: z.number().nonnegative(),
-  sampleId: z.string(),
+  sliceId: z.string(),
   padKey: PadKey,
 });
 export type TriggerEvent = z.infer<typeof TriggerEvent>;
@@ -65,7 +90,7 @@ export const Job = z.object({
   status: JobStatus,
   progress: z.number().min(0).max(1),
   error: z.string().optional(),
-  trackId: z.string().optional(),
+  sampleId: z.string().optional(),
 });
 export type Job = z.infer<typeof Job>;
 

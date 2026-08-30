@@ -3,7 +3,7 @@ import cors from "@fastify/cors";
 import { ensureStorage } from "./store/paths.js";
 import { registerIngestRoutes } from "./routes/ingest.js";
 import { registerJobRoutes } from "./routes/jobs.js";
-import { registerTrackRoutes } from "./routes/tracks.js";
+import { registerSampleRoutes } from "./routes/samples.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
 
@@ -16,7 +16,7 @@ app.get("/health", async () => ({ ok: true, ts: new Date().toISOString() }));
 
 registerIngestRoutes(app);
 registerJobRoutes(app);
-registerTrackRoutes(app);
+registerSampleRoutes(app);
 
 app
   .listen({ port: PORT, host: "127.0.0.1" })

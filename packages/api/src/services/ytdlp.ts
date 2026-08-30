@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { trackDir } from "../store/paths.js";
+import { sampleDir } from "../store/paths.js";
 
 export interface YtMeta {
   id: string;
@@ -50,13 +50,13 @@ export const fetchMeta = async (url: string): Promise<YtMeta> => {
   };
 };
 
-// Downloads best audio into `<trackDir>/source.<ext>`. Returns the resulting file path.
+// Downloads best audio into `<sampleDir>/source.<ext>`. Returns the resulting file path.
 export const downloadAudio = async (
   url: string,
-  trackId: string,
+  sampleId: string,
   onProgress?: (fraction: number) => void,
 ): Promise<string> => {
-  const dir = trackDir(trackId);
+  const dir = sampleDir(sampleId);
   const outTemplate = join(dir, "source.%(ext)s");
   await run(
     "yt-dlp",

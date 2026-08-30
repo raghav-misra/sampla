@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import type { Sample } from "@sampla/shared";
 import { useTransport } from "./store.js";
 import { api } from "../../lib/api.js";
 
@@ -10,21 +11,25 @@ export interface AudioEngine {
   seek: (t: number) => void;
 }
 
-export const useAudioEngine = (): AudioEngine => {
+// Binds an <audio> element to a specific Sample (audio source), driven by the
+// transport for the given Track (row). Playhead + selection are read from the
+// transport's per-track maps.
+export const useAudioEngine = (
+  trackId: string | null,
+  sample: Sample | null,
+): AudioEngine => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const rafRef = useRef<number | null>(null);
   // stop time for the current play burst (used when playing a selection)
   const stopAtRef = useRef<number | null>(null);
 
-  const track = useTransport((s) => s.track);
-
   useEffect(() => {
-    if (!track) {
+    if (!sample) {
       audioRef.current?.pause();
       audioRef.current = null;
       return;
     }
-    const el = new Audio(api.audioUrl(track.id));
+    const el = new Audio(api.audioUrl(sample.id));
     el.preload = "auto";
     el.addEventListener("error", () => {
       const code = el.error?.code;
@@ -39,7 +44,7 @@ export const useAudioEngine = (): AudioEngine => {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
     };
-  }, [track]);
+  }, [sample]);
 
   const stopRafLoop = (): void => {
     if (rafRef.current !== null) {
@@ -52,28 +57,33 @@ export const useAudioEngine = (): AudioEngine => {
     stopRafLoop();
     const tick = (): void => {
       const el = audioRef.current;
-      if (!el) return;
+      if (!el || !trackId) return;
       const t = el.currentTime;
       const stopAt = stopAtRef.current;
       if (stopAt !== null && t >= stopAt) {
         el.pause();
-        useTransport.getState().setPlayhead(stopAt);
+        useTransport.getState().setPlayhead(trackId, stopAt);
         useTransport.getState().setPlaying(false);
         stopAtRef.current = null;
         stopRafLoop();
         return;
       }
-      useTransport.getState().setPlayhead(t);
+      useTransport.getState().setPlayhead(trackId, t);
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
   };
 
+  const currentPlayhead = (): number =>
+    trackId ? useTransport.getState().playheadByTrack[trackId] ?? 0 : 0;
+
+  const currentSelection = (): { startSec: number; endSec: number } | null =>
+    trackId ? useTransport.getState().selectionByTrack[trackId] ?? null : null;
+
   const playFromPlayhead = (): void => {
     const el = audioRef.current;
     if (!el) return;
-    const { playhead } = useTransport.getState();
-    el.currentTime = playhead;
+    el.currentTime = currentPlayhead();
     stopAtRef.current = null;
     void el.play().then(() => {
       useTransport.getState().setPlaying(true);
@@ -83,11 +93,11 @@ export const useAudioEngine = (): AudioEngine => {
 
   const playSelection = (): void => {
     const el = audioRef.current;
-    const { selection } = useTransport.getState();
-    if (!el || !selection) return;
-    el.currentTime = selection.startSec;
-    useTransport.getState().setPlayhead(selection.startSec);
-    stopAtRef.current = selection.endSec;
+    const sel = currentSelection();
+    if (!el || !sel || !trackId) return;
+    el.currentTime = sel.startSec;
+    useTransport.getState().setPlayhead(trackId, sel.startSec);
+    stopAtRef.current = sel.endSec;
     void el.play().then(() => {
       useTransport.getState().setPlaying(true);
       startRafLoop();
@@ -103,10 +113,11 @@ export const useAudioEngine = (): AudioEngine => {
   };
 
   const toggle = (): void => {
-    const { isPlaying, selection } = useTransport.getState();
+    const { isPlaying } = useTransport.getState();
+    const sel = currentSelection();
     if (isPlaying) {
       pause();
-    } else if (selection) {
+    } else if (sel) {
       playSelection();
     } else {
       playFromPlayhead();
@@ -116,7 +127,7 @@ export const useAudioEngine = (): AudioEngine => {
   const seek = (t: number): void => {
     const el = audioRef.current;
     if (el) el.currentTime = t;
-    useTransport.getState().setPlayhead(t);
+    if (trackId) useTransport.getState().setPlayhead(trackId, t);
   };
 
   return { playFromPlayhead, playSelection, pause, toggle, seek };

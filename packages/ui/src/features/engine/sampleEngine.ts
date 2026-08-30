@@ -7,8 +7,8 @@ class SampleEngine {
   private ctx: AudioContext | null = null;
   private node: AudioWorkletNode | null = null;
   private workletLoading: Promise<void> | null = null;
-  private tracksLoaded = new Set<string>();
-  private tracksLoading = new Map<string, Promise<void>>();
+  private samplesLoaded = new Set<string>();
+  private samplesLoading = new Map<string, Promise<void>>();
   private trackSampleRate = 0;
 
   private ensureContext(): AudioContext {
@@ -52,18 +52,18 @@ class SampleEngine {
     return this.workletLoading;
   }
 
-  isReady(trackId: string): boolean {
-    return this.tracksLoaded.has(trackId);
+  isReady(sampleId: string): boolean {
+    return this.samplesLoaded.has(sampleId);
   }
 
-  async loadTrack(trackId: string): Promise<void> {
-    if (this.tracksLoaded.has(trackId)) return;
-    const existing = this.tracksLoading.get(trackId);
+  async loadSample(sampleId: string): Promise<void> {
+    if (this.samplesLoaded.has(sampleId)) return;
+    const existing = this.samplesLoading.get(sampleId);
     if (existing) return existing;
     const p = (async () => {
       const ctx = this.ensureContext();
       await this.ensureWorklet();
-      const res = await fetch(api.audioUrl(trackId));
+      const res = await fetch(api.audioUrl(sampleId));
       if (!res.ok) throw new Error(`audio fetch ${res.status}`);
       const arr = await res.arrayBuffer();
       const buf = await ctx.decodeAudioData(arr);
@@ -78,22 +78,22 @@ class SampleEngine {
         transfers.push(copy.buffer);
       }
       this.trackSampleRate = ctx.sampleRate;
-      this.node!.port.postMessage({ type: "load", trackId, channels }, transfers);
-      this.tracksLoaded.add(trackId);
-      this.tracksLoading.delete(trackId);
+      this.node!.port.postMessage({ type: "load", sampleId, channels }, transfers);
+      this.samplesLoaded.add(sampleId);
+      this.samplesLoading.delete(sampleId);
     })();
-    this.tracksLoading.set(trackId, p);
+    this.samplesLoading.set(sampleId, p);
     return p;
   }
 
-  play(trackId: string, region: Region, gain = 1, playThrough = false): void {
-    if (!this.node || !this.tracksLoaded.has(trackId)) return;
+  play(sampleId: string, region: Region, gain = 1, playThrough = false): void {
+    if (!this.node || !this.samplesLoaded.has(sampleId)) return;
     const sr = this.trackSampleRate || this.ctx?.sampleRate || 48000;
     const startFrame = Math.max(0, Math.floor(region.startSec * sr));
     const endFrame = Math.max(startFrame, Math.floor(region.endSec * sr));
     this.node.port.postMessage({
       type: "trigger",
-      trackId,
+      sampleId,
       startFrame,
       endFrame,
       gain,
@@ -101,9 +101,9 @@ class SampleEngine {
     });
   }
 
-  releaseTrack(trackId: string): void {
-    this.tracksLoaded.delete(trackId);
-    if (this.node) this.node.port.postMessage({ type: "unload", trackId });
+  releaseSample(sampleId: string): void {
+    this.samplesLoaded.delete(sampleId);
+    if (this.node) this.node.port.postMessage({ type: "unload", sampleId });
   }
 }
 

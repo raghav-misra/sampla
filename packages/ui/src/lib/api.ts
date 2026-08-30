@@ -1,9 +1,9 @@
-import {
+import type {
   IngestRequest,
   IngestResponse,
   Job,
   Peaks,
-  Track,
+  Sample,
 } from "@sampla/shared";
 
 const BASE = "/api";
@@ -27,7 +27,8 @@ export const api = {
   ingest: (body: IngestRequest): Promise<IngestResponse> =>
     request<IngestResponse>("/ingest", { method: "POST", body: JSON.stringify(body) }),
   getJob: (id: string): Promise<Job> => request<Job>(`/jobs/${id}`),
-  getTrack: (id: string): Promise<Track> => request<Track>(`/tracks/${id}`),
-  getPeaks: (id: string): Promise<Peaks> => request<Peaks>(`/tracks/${id}/peaks`),
-  audioUrl: (id: string): string => `${MEDIA_BASE}/tracks/${id}/audio`,
+  listSamples: (): Promise<Sample[]> => request<Sample[]>(`/samples`),
+  getSample: (id: string): Promise<Sample> => request<Sample>(`/samples/${id}`),
+  getPeaks: (id: string): Promise<Peaks> => request<Peaks>(`/samples/${id}/peaks`),
+  audioUrl: (id: string): string => `${MEDIA_BASE}/samples/${id}/audio`,
 };

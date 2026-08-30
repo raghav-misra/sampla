@@ -5,7 +5,7 @@ class SamplerProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
     /** @type {Map<string, Float32Array[]>} */
-    this.tracks = new Map();
+    this.samples = new Map();
     /** @type {Array<{
      *  channels: Float32Array[],
      *  pos: number, end: number, gain: number,
@@ -22,10 +22,10 @@ class SamplerProcessor extends AudioWorkletProcessor {
   _onMsg(msg) {
     switch (msg.type) {
       case "load":
-        this.tracks.set(msg.trackId, msg.channels);
+        this.samples.set(msg.sampleId, msg.channels);
         break;
       case "unload":
-        this.tracks.delete(msg.trackId);
+        this.samples.delete(msg.sampleId);
         break;
       case "trigger":
         this._trigger(msg);
@@ -61,11 +61,9 @@ class SamplerProcessor extends AudioWorkletProcessor {
     }
   }
 
-  _trigger({ trackId, startFrame, endFrame, gain, playThrough }) {
-    const channels = this.tracks.get(trackId);
+  _trigger({ sampleId, startFrame, endFrame, gain, playThrough }) {
+    const channels = this.samples.get(sampleId);
     if (!channels || !channels[0]) return;
-    // Choke any currently sounding voice that hasn't opted into play-through
-    // before starting the new one.
     this._chokeInterruptible();
     const len = channels[0].length;
     this.voices.push({

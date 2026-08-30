@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Recording } from "@sampla/shared";
-import { padPalette } from "../samples/store.js";
+import { padPalette } from "../slices/store.js";
 import { useRecordings } from "./store.js";
 
 interface Props {
@@ -332,7 +332,7 @@ function Timeline({ recording, durationMs, isPlaying }: TimelineProps) {
             // Index-keyed on purpose: the slot's tMs mutates during drag and we
             // need React to reuse the same DOM node so pointer capture holds.
             // biome-ignore lint/suspicious/noArrayIndexKey: see comment above
-            key={`${ev.sampleId}-${i}`}
+            key={`${ev.sliceId}-${i}`}
             role="slider"
             tabIndex={-1}
             aria-label={`${ev.padKey} at ${formatMs(ev.tMs)}`}

@@ -1,21 +1,22 @@
-import type { Sample } from "@sampla/shared";
+import type { Slice } from "@sampla/shared";
 import { formatTime } from "@sampla/shared";
-import { PAD_ORDER, padPalette, useSamples } from "./store.js";
+import { PAD_ORDER, padPalette, useSlices } from "./store.js";
 import { useTransport } from "../engine/store.js";
 
 interface Props {
   trackId: string;
-  samples: Sample[];
+  slices: Slice[];
   ready: boolean;
-  onTrigger: (sample: Sample) => void;
+  onTrigger: (slice: Slice) => void;
 }
 
-export function SamplesPanel({ trackId, samples, ready, onTrigger }: Props) {
-  const byPad = new Map<string, Sample>();
-  for (const s of samples) byPad.set(s.padKey, s);
-  const removeSample = useSamples((s) => s.removeSample);
-  const setPlayThrough = useSamples((s) => s.setPlayThrough);
+export function SlicesPanel({ trackId, slices, ready, onTrigger }: Props) {
+  const byPad = new Map<string, Slice>();
+  for (const s of slices) byPad.set(s.padKey, s);
+  const removeSlice = useSlices((s) => s.removeSlice);
+  const setPlayThrough = useSlices((s) => s.setPlayThrough);
   const setSelection = useTransport((s) => s.setSelection);
+  const setActiveTrack = useTransport((s) => s.setActiveTrackId);
 
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -26,10 +27,10 @@ export function SamplesPanel({ trackId, samples, ready, onTrigger }: Props) {
           alignItems: "baseline",
         }}
       >
-        <h3 style={{ margin: 0, fontSize: 13, color: "#9aa3b2", letterSpacing: 0.5 }}>
-          SAMPLES {ready ? "" : "· loading buffer…"}
-        </h3>
-        <span style={{ fontSize: 11, color: "#6b7280" }}>
+        <h4 style={{ margin: 0, fontSize: 11, color: "#9aa3b2", letterSpacing: 0.5 }}>
+          PADS {ready ? "" : "· loading buffer…"}
+        </h4>
+        <span style={{ fontSize: 10, color: "#6b7280" }}>
           Enter to save · numpad/digit keys to trigger · click pad to play
         </span>
       </div>
@@ -37,7 +38,7 @@ export function SamplesPanel({ trackId, samples, ready, onTrigger }: Props) {
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(10, minmax(0, 1fr))",
-          gap: 8,
+          gap: 6,
         }}
       >
         {PAD_ORDER.map((pad) => {
@@ -55,13 +56,13 @@ export function SamplesPanel({ trackId, samples, ready, onTrigger }: Props) {
                 border: `1px solid ${bound ? color : "#2a2f3a"}`,
                 background: bound ? withAlpha(color, 0.14) : "#0f1115",
                 borderRadius: 6,
-                padding: "10px 8px",
+                padding: "8px 6px",
                 display: "flex",
                 flexDirection: "column",
                 gap: 4,
                 cursor: canPlay ? "pointer" : "default",
                 opacity: bound && !ready ? 0.6 : 1,
-                minHeight: 72,
+                minHeight: 62,
                 position: "relative",
                 userSelect: "none",
               }}
@@ -76,7 +77,7 @@ export function SamplesPanel({ trackId, samples, ready, onTrigger }: Props) {
                 <span
                   style={{
                     fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                    fontSize: 14,
+                    fontSize: 13,
                     color: bound ? color : "#4a5265",
                     fontWeight: 700,
                   }}
@@ -94,7 +95,7 @@ export function SamplesPanel({ trackId, samples, ready, onTrigger }: Props) {
                       title={
                         s.playThrough
                           ? "Plays through subsequent triggers — click to disable"
-                          : "Cut off when another sample plays — click to let it ring"
+                          : "Cut off when another slice plays — click to let it ring"
                       }
                       style={{
                         ...pillBtn,
@@ -108,9 +109,10 @@ export function SamplesPanel({ trackId, samples, ready, onTrigger }: Props) {
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
+                        setActiveTrack(trackId);
                         setSelection(s.region);
                       }}
-                      title="Select region on track"
+                      title="Focus this track and select region"
                       style={pillBtn}
                     >
                       ⌖
@@ -119,7 +121,7 @@ export function SamplesPanel({ trackId, samples, ready, onTrigger }: Props) {
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        void removeSample(trackId, s.id);
+                        void removeSlice(trackId, s.id);
                       }}
                       title="Remove"
                       style={pillBtn}
