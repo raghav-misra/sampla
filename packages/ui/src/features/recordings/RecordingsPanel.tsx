@@ -14,6 +14,12 @@ const formatMs = (ms: number): string => {
   return `${m}:${r.toFixed(2).padStart(5, "0")}`;
 };
 
+// Compact delta between two events, e.g. "312 ms" or "1.24 s".
+const formatDelta = (ms: number): string => {
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  return `${(ms / 1000).toFixed(2)}s`;
+};
+
 export function RecordingsPanel({ trackId }: Props) {
   const recordings = useRecordings((s) => s.byTrack[trackId] ?? EMPTY);
   const active = useRecordings((s) => s.active);
@@ -312,17 +318,23 @@ function Timeline({ recording, durationMs, isPlaying }: TimelineProps) {
   };
 
   return (
-    <div
-      ref={stripRef}
-      style={{
-        position: "relative",
-        height: 22,
-        borderRadius: 3,
-        background: "#1a1e28",
-        overflow: "hidden",
-        touchAction: "none",
-      }}
-    >
+    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <DeltaLabels
+        events={recording.events}
+        durationMs={durationMs}
+        highlightIndex={dragIndex}
+      />
+      <div
+        ref={stripRef}
+        style={{
+          position: "relative",
+          height: 22,
+          borderRadius: 3,
+          background: "#1a1e28",
+          overflow: "hidden",
+          touchAction: "none",
+        }}
+      >
       {recording.events.map((ev, i) => {
         const left = (ev.tMs / durationMs) * 100;
         const color = padPalette(ev.padKey);
@@ -383,6 +395,80 @@ function Timeline({ recording, durationMs, isPlaying }: TimelineProps) {
           pointerEvents: "none",
         }}
       />
+      </div>
+    </div>
+  );
+}
+
+interface DeltaLabelsProps {
+  events: import("@sampla/shared").TriggerEvent[];
+  durationMs: number;
+  highlightIndex: number | null;
+}
+
+// Renders a small row of gap labels above the timeline strip. Each label is
+// centered between the two events it separates, showing the ms/s distance so
+// the user can manually align hits to a tempo.
+function DeltaLabels({ events, durationMs, highlightIndex }: DeltaLabelsProps) {
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const [width, setWidth] = useState(0);
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setWidth(el.clientWidth));
+    ro.observe(el);
+    setWidth(el.clientWidth);
+    return () => ro.disconnect();
+  }, []);
+
+  // Threshold: hide labels whose neighbor-tick pixel gap is too tight to read.
+  const MIN_GAP_PX = 34;
+
+  return (
+    <div
+      ref={wrapRef}
+      style={{
+        position: "relative",
+        height: 12,
+        fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+      }}
+    >
+      {events.map((ev, i) => {
+        if (i === 0) return null;
+        const prev = events[i - 1];
+        if (!prev) return null;
+        const delta = ev.tMs - prev.tMs;
+        const gapPx = width > 0 ? (delta / durationMs) * width : Infinity;
+        if (gapPx < MIN_GAP_PX) return null;
+        const midPct = ((ev.tMs + prev.tMs) / 2 / durationMs) * 100;
+        const highlighted =
+          highlightIndex !== null && (highlightIndex === i || highlightIndex === i - 1);
+        return (
+          <span
+            // biome-ignore lint/suspicious/noArrayIndexKey: paired with adjacent event slots
+            key={`delta-${i}`}
+            style={{
+              position: "absolute",
+              left: `${midPct}%`,
+              top: 0,
+              transform: "translateX(-50%)",
+              fontSize: 9,
+              lineHeight: "12px",
+              color: highlighted ? "#eef1f6" : "#6b7280",
+              whiteSpace: "nowrap",
+              padding: "0 3px",
+              background: highlighted ? "rgba(238,241,246,0.08)" : "transparent",
+              borderRadius: 2,
+              pointerEvents: "none",
+              userSelect: "none",
+              transition: "color 80ms, background 80ms",
+            }}
+          >
+            {formatDelta(delta)}
+          </span>
+        );
+      })}
     </div>
   );
 }
