@@ -1,4 +1,4 @@
-export const DEFAULT_SAMPLE_LEN_SEC = 0.25;
+export const DEFAULT_SAMPLE_LEN_SEC = 0.5;
 export const PEAKS_BUCKETS_PER_SEC = 100;
 
 export const clamp = (v: number, min: number, max: number): number =>

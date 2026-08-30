@@ -2,6 +2,20 @@ import { useEffect, useState } from "react";
 import type { Sample } from "@sampla/shared";
 import { sampleEngine } from "./sampleEngine.js";
 
+// Prime the AudioContext on the first user gesture anywhere in the window.
+let gestureListenerAttached = false;
+const attachGestureListener = (): void => {
+  if (gestureListenerAttached) return;
+  gestureListenerAttached = true;
+  const prime = (): void => {
+    sampleEngine.primeContext();
+    window.removeEventListener("pointerdown", prime);
+    window.removeEventListener("keydown", prime);
+  };
+  window.addEventListener("pointerdown", prime, { once: false });
+  window.addEventListener("keydown", prime, { once: false });
+};
+
 export const useSampleEngine = (trackId: string | null): {
   ready: boolean;
   play: (sample: Sample) => void;
@@ -9,6 +23,7 @@ export const useSampleEngine = (trackId: string | null): {
   const [ready, setReady] = useState<boolean>(trackId ? sampleEngine.isReady(trackId) : false);
 
   useEffect(() => {
+    attachGestureListener();
     if (!trackId) {
       setReady(false);
       return;

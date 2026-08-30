@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { DEFAULT_SAMPLE_LEN_SEC, formatTime, type PadKey } from "@sampla/shared";
 import { useTransport } from "../engine/store.js";
 import { useAudioEngine } from "../engine/useAudioEngine.js";
@@ -28,7 +28,6 @@ const codeToPad = (code: string): PadKey | null => {
 export function TrackView() {
   const track = useTransport((s) => s.track);
   const peaks = useTransport((s) => s.peaks);
-  const playhead = useTransport((s) => s.playhead);
   const selection = useTransport((s) => s.selection);
   const isPlaying = useTransport((s) => s.isPlaying);
   const setSelection = useTransport((s) => s.setSelection);
@@ -99,7 +98,6 @@ export function TrackView() {
       <Waveform
         track={track}
         peaks={peaks}
-        playhead={playhead}
         selection={selection}
         samples={samples}
         onSeek={engine.seek}
@@ -130,7 +128,7 @@ export function TrackView() {
         >
           {isPlaying ? "Pause" : "Play"} (Space)
         </button>
-        <span>playhead {formatTime(playhead)}</span>
+        <PlayheadTime />
         {selection && (
           <span>
             selection {formatTime(selection.startSec)} → {formatTime(selection.endSec)} (
@@ -149,3 +147,28 @@ export function TrackView() {
 }
 
 const EMPTY: never[] = [];
+
+// Reads playhead directly from the transport store on rAF and writes to the DOM,
+// so the ~60Hz playhead updates never trigger a React re-render.
+function PlayheadTime() {
+  const ref = useRef<HTMLSpanElement | null>(null);
+  useEffect(() => {
+    let last = -1;
+    let raf = 0;
+    const tick = (): void => {
+      const ph = useTransport.getState().playhead;
+      if (ph !== last) {
+        last = ph;
+        if (ref.current) ref.current.textContent = formatTime(ph);
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  return (
+    <span>
+      playhead <span ref={ref}>0:00.000</span>
+    </span>
+  );
+}
