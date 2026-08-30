@@ -13,7 +13,7 @@
       in {
         devShells.default = pkgs.mkShell {
           packages = [
-            pkgs.nodejs_20
+            pkgs.nodejs_22
             pkgs.pnpm
             pkgs.ffmpeg
             pkgs.yt-dlp
