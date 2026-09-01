@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Sample } from "@sampla/shared";
 import { formatTime } from "@sampla/shared";
 import { api } from "../../lib/api.js";
+import { useInstruments } from "../instruments/store.js";
 import { filteredSamples, useSampleLibrary } from "./store.js";
 
 type IngestPhase =
@@ -24,6 +25,7 @@ export function SampleLibrary({ onPick, onClose }: Props) {
   const error = useSampleLibrary((s) => s.error);
   const refresh = useSampleLibrary((s) => s.refresh);
   const addLocal = useSampleLibrary((s) => s.addLocal);
+  const ensureYouTubeSampler = useInstruments((s) => s.ensureYouTubeSampler);
 
   useEffect(() => {
     void refresh();
@@ -47,7 +49,7 @@ export function SampleLibrary({ onPick, onClose }: Props) {
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <h3 style={{ margin: 0, fontSize: 13, color: "#9aa3b2", letterSpacing: 0.5 }}>
-          SAMPLE LIBRARY
+          INSTRUMENTS
         </h3>
         {onClose && (
           <button
@@ -69,7 +71,7 @@ export function SampleLibrary({ onPick, onClose }: Props) {
       </div>
       <input
         type="search"
-        placeholder="Search samples by title…"
+        placeholder="Search YouTube samplers"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         style={{
@@ -81,7 +83,12 @@ export function SampleLibrary({ onPick, onClose }: Props) {
           fontSize: 13,
         }}
       />
-      <ImportRow onImported={(s) => addLocal(s)} />
+      <ImportRow
+        onImported={(sample) => {
+          addLocal(sample);
+          void ensureYouTubeSampler(sample);
+        }}
+      />
       {error && <span style={{ color: "#ff5470", fontSize: 12 }}>{error}</span>}
       <div
         style={{
@@ -100,7 +107,7 @@ export function SampleLibrary({ onPick, onClose }: Props) {
         )}
         {!loading && samples.length === 0 && (
           <span style={{ color: "#6b7280", fontSize: 12 }}>
-            no samples yet — paste a YouTube URL above to import one
+            No instruments yet. Import a YouTube source above.
           </span>
         )}
         {filtered.map((s) => (
@@ -134,7 +141,7 @@ export function SampleLibrary({ onPick, onClose }: Props) {
               {s.title}
             </span>
             <span style={{ color: "#6b7280", fontSize: 11 }}>
-              {formatTime(s.durationSec)}
+              YT SAMPLER · {formatTime(s.durationSec)}
             </span>
           </button>
         ))}

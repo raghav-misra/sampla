@@ -52,7 +52,13 @@ export const useSampleEngine = (sampleId: string | null): {
     ready,
     play: (slice: Slice) => {
       if (!sampleId) return;
-      sampleEngine.play(sampleId, slice.region, slice.gain, !!slice.playThrough);
+      sampleEngine.play(
+        sampleId,
+        slice.region,
+        slice.gain,
+        !!slice.playThrough,
+        slice.trackId,
+      );
       useRecordings.getState().logTrigger(slice);
     },
   };

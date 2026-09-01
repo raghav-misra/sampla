@@ -1,252 +1,173 @@
-import { useEffect, useState } from "react";
-import type { Sample, Slice, Track } from "@sampla/shared";
-import { DEFAULT_SAMPLE_LEN_SEC, formatTime, type PadKey } from "@sampla/shared";
-import { api } from "../../lib/api.js";
+import type { Clip, Recording, Track } from "@sampla/shared";
+import { useRef, useState } from "react";
+import { useClips } from "../clips/store.js";
 import { useTransport } from "../engine/store.js";
-import { useAudioEngine } from "../engine/useAudioEngine.js";
-import { useSampleEngine } from "../engine/useSampleEngine.js";
-import { useSlices } from "../slices/store.js";
-import { SlicesPanel } from "../slices/SlicesPanel.js";
-import { RecordingsPanel } from "../recordings/RecordingsPanel.js";
 import { useProjects } from "../projects/store.js";
-import { Waveform } from "./Waveform.js";
+import { useRecordings } from "../recordings/store.js";
+import { padPalette } from "../slices/store.js";
 
 interface Props {
   track: Track;
+  timelineDurationMs: number;
 }
 
-const codeToPad = (code: string): PadKey | null => {
-  if (code.startsWith("Numpad")) {
-    const d = code.slice(6);
-    if (/^\d$/.test(d)) return d as PadKey;
-  }
-  if (code.startsWith("Digit")) {
-    const d = code.slice(5);
-    if (/^\d$/.test(d)) return d as PadKey;
-  }
-  return null;
-};
+export function TrackRow({ track, timelineDurationMs }: Props) {
+  const laneRef = useRef<HTMLDivElement | null>(null);
+  const [draggingClipId, setDraggingClipId] = useState<string | null>(null);
+  const active = useTransport((state) => state.activeTrackId === track.id);
+  const setActiveTrack = useTransport((state) => state.setActiveTrackId);
+  const setArrangementPlayhead = useTransport((state) => state.setArrangementPlayhead);
+  const setArrangementPlaying = useTransport((state) => state.setArrangementPlaying);
+  const removeTrack = useProjects((state) => state.removeTrack);
+  const recordings = useRecordings((state) => state.byTrack[track.id] ?? EMPTY_RECORDINGS);
+  const clips = useClips((state) => state.byTrack[track.id] ?? EMPTY_CLIPS);
+  const selectedClipId = useClips((state) => state.selectedClipId);
+  const addClip = useClips((state) => state.addClip);
+  const moveClip = useClips((state) => state.moveClip);
+  const removeClip = useClips((state) => state.removeClip);
+  const selectClip = useClips((state) => state.selectClip);
+  const recordingById = new Map(recordings.map((recording) => [recording.id, recording]));
 
-const isEditable = (el: EventTarget | null): boolean => {
-  if (!(el instanceof HTMLElement)) return false;
-  const tag = el.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || el.isContentEditable;
-};
+  const selectTrack = (): void => {
+    setActiveTrack(track.id);
+    selectClip(null);
+  };
 
-// Cache of Sample+Peaks per sampleId, keyed here to avoid re-fetching across
-// TrackRow re-mounts. Values are Promises so concurrent rows await the same
-// fetch.
-const sampleCache = new Map<
-  string,
-  Promise<{ sample: Sample; peaks: import("@sampla/shared").Peaks }>
->();
-
-const fetchSampleBundle = (id: string) => {
-  const existing = sampleCache.get(id);
-  if (existing) return existing;
-  const p = (async () => {
-    const [sample, peaks] = await Promise.all([api.getSample(id), api.getPeaks(id)]);
-    return { sample, peaks };
-  })();
-  sampleCache.set(id, p);
-  return p;
-};
-
-export function TrackRow({ track }: Props) {
-  const [bundle, setBundle] = useState<
-    { sample: Sample; peaks: import("@sampla/shared").Peaks } | null
-  >(null);
-  const [error, setError] = useState<string | null>(null);
-  const removeTrack = useProjects((s) => s.removeTrack);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchSampleBundle(track.sampleId)
-      .then((b) => {
-        if (!cancelled) setBundle(b);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) setError((err as Error).message);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [track.sampleId]);
-
-  const active = useTransport((s) => s.activeTrackId === track.id);
-  const setActiveTrack = useTransport((s) => s.setActiveTrackId);
-  const setSelection = useTransport((s) => s.setSelection);
-  const isPlaying = useTransport((s) => s.isPlaying && s.activeTrackId === track.id);
-  const selection = useTransport((s) => s.selectionByTrack[track.id] ?? null);
-
-  const slices = useSlices((s) => s.byTrack[track.id] ?? EMPTY);
-  const addSlice = useSlices((s) => s.addSlice);
-  const hydrateSlices = useSlices((s) => s.hydrate);
-
-  const sampleEngine = useSampleEngine(bundle?.sample.id ?? null);
-  const audioEngine = useAudioEngine(track.id, bundle?.sample ?? null);
-
-  useEffect(() => {
-    void hydrateSlices();
-  }, [hydrateSlices]);
-
-  useEffect(() => {
-    if (!active) return;
-    const onKey = (e: KeyboardEvent): void => {
-      if (isEditable(e.target)) return;
-      if (e.code === "Space") {
-        e.preventDefault();
-        audioEngine.toggle();
-        return;
-      }
-      if (e.code === "Escape") {
-        setSelection(null);
-        return;
-      }
-      if ((e.code === "Enter" || e.code === "NumpadEnter") && bundle) {
-        e.preventDefault();
-        const sel = useTransport.getState().selectionByTrack[track.id] ?? null;
-        const ph = useTransport.getState().playheadByTrack[track.id] ?? 0;
-        const region = sel
-          ? sel
-          : {
-              startSec: ph,
-              endSec: Math.min(bundle.sample.durationSec, ph + DEFAULT_SAMPLE_LEN_SEC),
-            };
-        if (region.endSec <= region.startSec) return;
-        void addSlice(track.id, region).then((created) => {
-          if (created) setSelection(null);
-        });
-        return;
-      }
-      const pad = codeToPad(e.code);
-      if (pad && !e.repeat) {
-        const bound = (useSlices.getState().byTrack[track.id] ?? []).find(
-          (s) => s.padKey === pad,
-        );
-        if (bound) {
-          e.preventDefault();
-          sampleEngine.play(bound);
-        }
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [active, audioEngine, setSelection, track.id, bundle, addSlice, sampleEngine]);
-
-  const focus = (): void => setActiveTrack(track.id);
+  const msAtClientX = (clientX: number): number => {
+    const rect = laneRef.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0) return 0;
+    const fraction = (clientX - rect.left) / rect.width;
+    return Math.max(0, Math.min(timelineDurationMs, fraction * timelineDurationMs));
+  };
 
   return (
-    <section
-      onPointerDown={focus}
-      style={{
-        border: `1px solid ${active ? "#3f6b4f" : "#1a1e28"}`,
-        background: "#0b0d12",
-        borderRadius: 8,
-        padding: 12,
-        display: "flex",
-        flexDirection: "column",
-        gap: 10,
-      }}
-    >
-      <header
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          justifyContent: "space-between",
+    <section className={`track-lane${active ? " active" : ""}`} onPointerDown={selectTrack}>
+      <header className="track-lane-header">
+        <div style={{ minWidth: 0 }}>
+          <strong>{track.name || `Track ${track.order + 1}`}</strong>
+          <span>YouTube sampler</span>
+        </div>
+        <button
+          type="button"
+          title="Remove track"
+          onClick={(event) => {
+            event.stopPropagation();
+            void removeTrack(track.projectId, track.id);
+          }}
+        >
+          ×
+        </button>
+      </header>
+      <div
+        ref={laneRef}
+        className="track-lane-content"
+        onPointerDown={(event) => {
+          if (event.target !== event.currentTarget) return;
+          setArrangementPlaying(false);
+          setArrangementPlayhead(msAtClientX(event.clientX));
+        }}
+        onDragOver={(event) => {
+          if (event.dataTransfer.types.includes("application/x-sampla-recording")) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "copy";
+          }
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          const recordingId = event.dataTransfer.getData("application/x-sampla-recording");
+          const recording = recordingById.get(recordingId);
+          if (!recording) return;
+          const startMs = Math.max(0, msAtClientX(event.clientX) - recording.durationMs / 2);
+          setActiveTrack(track.id);
+          void addClip(track.id, recording.id, startMs);
         }}
       >
-        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-          <span
-            style={{
-              display: "inline-block",
-              width: 6,
-              height: 6,
-              borderRadius: 999,
-              background: active ? "#7bd88f" : "#3a3f4a",
-            }}
-          />
-          <h2 style={{ margin: 0, fontSize: 15 }}>
-            {bundle?.sample.title ?? (error ? "failed to load" : "loading…")}
-          </h2>
-          {bundle && (
-            <span style={{ color: "#9aa3b2", fontSize: 11 }}>
-              {formatTime(bundle.sample.durationSec)}
-            </span>
-          )}
-        </div>
-        <div style={{ display: "flex", gap: 6 }}>
-          {bundle && active && (
-            <button
-              type="button"
-              onClick={audioEngine.toggle}
-              style={{
-                padding: "4px 10px",
-                background: isPlaying ? "#ff5470" : "#7bd88f",
-                color: "#0f1115",
-                border: 0,
-                borderRadius: 4,
-                cursor: "pointer",
-                fontWeight: 600,
-                fontSize: 11,
+        {clips.map((clip) => {
+          const recording = recordingById.get(clip.recordingId);
+          if (!recording) return null;
+          const left = (clip.startMs / timelineDurationMs) * 100;
+          const width = Math.max(2.5, (recording.durationMs / timelineDurationMs) * 100);
+          return (
+            <div
+              key={clip.id}
+              tabIndex={0}
+              className={`recording-clip${selectedClipId === clip.id ? " selected" : ""}${draggingClipId === clip.id ? " dragging" : ""}`}
+              style={{ left: `${left}%`, width: `${width}%` }}
+              title={`${recording.name} at ${(clip.startMs / 1000).toFixed(2)}s`}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  setActiveTrack(track.id);
+                  selectClip(clip.id);
+                }
+              }}
+              onPointerDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setActiveTrack(track.id);
+                selectClip(clip.id);
+                setDraggingClipId(clip.id);
+                const startX = event.clientX;
+                const initialStart = clip.startMs;
+                const target = event.currentTarget;
+                target.setPointerCapture(event.pointerId);
+                const onMove = (moveEvent: PointerEvent): void => {
+                  const rect = laneRef.current?.getBoundingClientRect();
+                  if (!rect) return;
+                  const deltaMs = ((moveEvent.clientX - startX) / rect.width) * timelineDurationMs;
+                  const nextStart = Math.max(0, initialStart + deltaMs);
+                  target.style.left = `${(nextStart / timelineDurationMs) * 100}%`;
+                };
+                const onUp = (upEvent: PointerEvent): void => {
+                  target.removeEventListener("pointermove", onMove);
+                  target.removeEventListener("pointerup", onUp);
+                  target.removeEventListener("pointercancel", onUp);
+                  setDraggingClipId(null);
+                  const rect = laneRef.current?.getBoundingClientRect();
+                  if (!rect) return;
+                  const deltaMs = ((upEvent.clientX - startX) / rect.width) * timelineDurationMs;
+                  void moveClip(track.id, clip.id, Math.max(0, initialStart + deltaMs));
+                };
+                target.addEventListener("pointermove", onMove);
+                target.addEventListener("pointerup", onUp);
+                target.addEventListener("pointercancel", onUp);
               }}
             >
-              {isPlaying ? "Pause" : "Play"}
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              void removeTrack(track.projectId, track.id);
-            }}
-            title="Remove track"
-            style={{
-              background: "transparent",
-              border: "1px solid #2a2f3a",
-              color: "#6b7280",
-              cursor: "pointer",
-              fontSize: 12,
-              padding: "4px 8px",
-              borderRadius: 4,
-            }}
-          >
-            ×
-          </button>
-        </div>
-      </header>
-      {error && (
-        <span style={{ color: "#ff5470", fontSize: 12 }}>Failed to load: {error}</span>
-      )}
-      {bundle && (
-        <Waveform
-          trackId={track.id}
-          sample={bundle.sample}
-          peaks={bundle.peaks}
-          selection={selection}
-          slices={slices}
-          active={active}
-          onFocus={focus}
-          onSeek={audioEngine.seek}
-          onSelect={setSelection}
-        />
-      )}
-      {bundle && selection && (
-        <div style={{ fontSize: 11, color: "#9aa3b2" }}>
-          selection {formatTime(selection.startSec)} → {formatTime(selection.endSec)} (
-          {(selection.endSec - selection.startSec).toFixed(3)}s)
-        </div>
-      )}
-      <SlicesPanel
-        trackId={track.id}
-        slices={slices as Slice[]}
-        ready={sampleEngine.ready}
-        onTrigger={(s) => sampleEngine.play(s)}
-      />
-      <RecordingsPanel trackId={track.id} />
+              <span className="clip-title">{recording.name}</span>
+              <small className="clip-meta">{recording.events.length} hits</small>
+              <div className="clip-events">
+                {recording.events.map((recordedEvent, index) => (
+                  <i
+                    key={`${recordedEvent.sliceId}-${index}`}
+                    style={{
+                      left: `${(recordedEvent.tMs / Math.max(recording.durationMs, 1)) * 100}%`,
+                      background: padPalette(recordedEvent.padKey),
+                    }}
+                  />
+                ))}
+              </div>
+              <button
+                type="button"
+                className="clip-remove"
+                title="Remove clip"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void removeClip(track.id, clip.id);
+                }}
+              >
+                ×
+              </button>
+            </div>
+          );
+        })}
+        {clips.length === 0 && (
+          <span className="track-lane-empty">Drag a recording here from the instrument inspector</span>
+        )}
+      </div>
     </section>
   );
 }
 
-const EMPTY: Slice[] = [];
+const EMPTY_RECORDINGS: Recording[] = [];
+const EMPTY_CLIPS: Clip[] = [];

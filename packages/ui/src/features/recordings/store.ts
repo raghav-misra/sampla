@@ -3,6 +3,8 @@ import type { Recording, Slice, TriggerEvent } from "@sampla/shared";
 import { sampleEngine } from "../engine/sampleEngine.js";
 import { useSlices } from "../slices/store.js";
 import { useProjects } from "../projects/store.js";
+import { useInstruments } from "../instruments/store.js";
+import { useClips } from "../clips/store.js";
 import {
   deleteRecording,
   loadAllRecordings,
@@ -145,6 +147,7 @@ export const useRecordings = create<RecordingsState>((set, get) => ({
   removeRecording: async (trackId, id) => {
     const pb = get().playback;
     if (pb?.recordingId === id) get().stopPlayback();
+    await useClips.getState().removeForRecording(id);
     await deleteRecording(id);
     set((s) => ({
       byTrack: {
@@ -217,12 +220,16 @@ export const useRecordings = create<RecordingsState>((set, get) => ({
       .flat()
       .find((r) => r.id === id);
     if (!rec) return;
-    // Which Sample (audio buffer) does the recording's Track resolve to?
+    // Resolve the recording's Track through its reusable Instrument.
     const trackRec = Object.values(useProjects.getState().tracksByProject)
       .flat()
       .find((t) => t.id === rec.trackId);
     if (!trackRec) return;
-    const sampleId = trackRec.sampleId;
+    const instrument = useInstruments
+      .getState()
+      .instruments.find((candidate) => candidate.id === trackRec.instrumentId);
+    if (!instrument) return;
+    const sampleId = instrument.sampleId;
     const slicesForTrack = useSlices.getState().byTrack[rec.trackId] ?? [];
     const sliceById = new Map(slicesForTrack.map((s) => [s.id, s]));
     const timeouts: number[] = [];
@@ -230,7 +237,7 @@ export const useRecordings = create<RecordingsState>((set, get) => ({
       const to = window.setTimeout(() => {
         const s = sliceById.get(ev.sliceId);
         if (!s) return;
-        sampleEngine.play(sampleId, s.region, s.gain, !!s.playThrough);
+        sampleEngine.play(sampleId, s.region, s.gain, !!s.playThrough, rec.trackId);
       }, ev.tMs);
       timeouts.push(to);
     }

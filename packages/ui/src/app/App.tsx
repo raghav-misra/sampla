@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { useProjects } from "../features/projects/store.js";
+import { useInstruments } from "../features/instruments/store.js";
 import { ProjectView } from "../features/project/ProjectView.js";
+import "./app.css";
 
 export function App() {
   const hydrated = useProjects((s) => s.hydrated);
@@ -9,26 +11,19 @@ export function App() {
   const hydrate = useProjects((s) => s.hydrate);
   const createProject = useProjects((s) => s.createProject);
   const setActiveProject = useProjects((s) => s.setActiveProject);
+  const hydrateInstruments = useInstruments((s) => s.hydrate);
 
   useEffect(() => {
-    void hydrate();
-  }, [hydrate]);
+    void Promise.all([hydrate(), hydrateInstruments()]);
+  }, [hydrate, hydrateInstruments]);
 
   return (
-    <main
-      style={{
-        fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
-        background: "#0a0c11",
-        color: "#eef1f6",
-        minHeight: "100vh",
-        padding: "24px 32px",
-        display: "flex",
-        flexDirection: "column",
-        gap: 20,
-      }}
-    >
-      <header style={{ display: "flex", alignItems: "center", gap: 16 }}>
-        <h1 style={{ margin: 0, fontSize: 22, letterSpacing: 0.5 }}>sampla</h1>
+    <main className="app-shell">
+      <header className="app-bar">
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+          <h1 style={{ margin: 0, fontSize: 18 }}>sampla</h1>
+          <span style={{ color: "#68717e", fontSize: 10 }}>SONG EDITOR</span>
+        </div>
         {hydrated && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
             {projects.length > 0 && (
@@ -39,7 +34,7 @@ export function App() {
                   padding: "6px 10px",
                   borderRadius: 4,
                   border: "1px solid #2a2f3a",
-                  background: "#0f1115",
+                  background: "#101317",
                   color: "#eef1f6",
                   fontSize: 12,
                   fontFamily: "inherit",
@@ -65,7 +60,7 @@ export function App() {
                 fontSize: 12,
               }}
             >
-              + New Project
+                + New Song
             </button>
           </div>
         )}
@@ -92,7 +87,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
       }}
     >
       <span style={{ color: "#9aa3b2", fontSize: 13 }}>
-        No projects yet. Create one to start slicing samples and recording takes.
+        No songs yet. Create one to start building tracks.
       </span>
       <button
         type="button"
@@ -108,7 +103,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
           fontSize: 13,
         }}
       >
-        Create Project
+        Create Song
       </button>
     </div>
   );

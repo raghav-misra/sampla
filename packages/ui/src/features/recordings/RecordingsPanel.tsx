@@ -43,7 +43,7 @@ export function RecordingsPanel({ trackId }: Props) {
         }}
       >
         <h3 style={{ margin: 0, fontSize: 13, color: "#9aa3b2", letterSpacing: 0.5 }}>
-          RECORDINGS
+          RECORDINGS · DRAG TO TRACK
         </h3>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {isRecording && <LiveCounter startedAt={active.startedAt} />}
@@ -137,10 +137,13 @@ function RecordingRow({
     else setDraft(recording.name);
   };
 
-  const duration = Math.max(recording.durationMs, 1);
-
   return (
     <div
+      draggable
+      onDragStart={(event) => {
+        event.dataTransfer.setData("application/x-sampla-recording", recording.id);
+        event.dataTransfer.effectAllowed = "copy";
+      }}
       style={{
         border: "1px solid #2a2f3a",
         borderRadius: 6,
@@ -149,6 +152,7 @@ function RecordingRow({
         display: "flex",
         flexDirection: "column",
         gap: 6,
+        cursor: "grab",
       }}
     >
       <div
@@ -247,8 +251,38 @@ function RecordingRow({
           ×
         </button>
       </div>
-      <Timeline recording={recording} durationMs={duration} isPlaying={isPlaying} />
     </div>
+  );
+}
+
+export function RecordingEditor({ recording }: { recording: Recording }) {
+  const playback = useRecordings((state) => state.playback);
+  const playRecording = useRecordings((state) => state.playRecording);
+  const stopPlayback = useRecordings((state) => state.stopPlayback);
+  const isPlaying = playback?.recordingId === recording.id;
+
+  return (
+    <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: 14 }}>{recording.name}</h3>
+          <span style={{ color: "#6b7280", fontSize: 10 }}>
+            {formatMs(recording.durationMs)} · {recording.events.length} hits
+          </span>
+        </div>
+        <button type="button" onClick={isPlaying ? stopPlayback : () => playRecording(recording.id)}>
+          {isPlaying ? "Stop" : "Play"}
+        </button>
+      </div>
+      <Timeline
+        recording={recording}
+        durationMs={Math.max(recording.durationMs, 1)}
+        isPlaying={isPlaying}
+      />
+      <span style={{ color: "#68717e", fontSize: 10 }}>
+        Drag hit markers to adjust timing within this recording.
+      </span>
+    </section>
   );
 }
 

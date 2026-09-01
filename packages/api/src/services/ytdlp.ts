@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { readdir } from "node:fs/promises";
+import { readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { sampleDir } from "../store/paths.js";
 
@@ -58,12 +58,18 @@ export const downloadAudio = async (
 ): Promise<string> => {
   const dir = sampleDir(sampleId);
   const outTemplate = join(dir, "source.%(ext)s");
+  const existingFiles = await readdir(dir);
+  await Promise.all(
+    existingFiles
+      .filter((file) => file.startsWith("source."))
+      .map((file) => rm(join(dir, file), { force: true })),
+  );
   await run(
     "yt-dlp",
     [
       "-f",
       "bestaudio",
-      "--no-part",
+      "--no-continue",
       "--no-warnings",
       "--newline",
       "-o",

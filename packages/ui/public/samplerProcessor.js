@@ -11,7 +11,7 @@ class SamplerProcessor extends AudioWorkletProcessor {
      *  pos: number, end: number, gain: number,
      *  attackFrames: number, attackPos: number,
      *  choking: boolean, chokeFrames: number, chokePos: number,
-     *  playThrough: boolean,
+    *  playThrough: boolean, chokeGroup: string,
      * }>}
      */
     this.voices = [];
@@ -51,20 +51,20 @@ class SamplerProcessor extends AudioWorkletProcessor {
 
   // Called on trigger: only chokes voices that opted into being interrupted.
   // Voices with playThrough=true keep sounding until they hit their region end.
-  _chokeInterruptible() {
+  _chokeInterruptible(chokeGroup) {
     const chokeFrames = Math.max(1, Math.round(sampleRate * 0.008));
     for (const v of this.voices) {
-      if (v.playThrough || v.choking) continue;
+      if (v.chokeGroup !== chokeGroup || v.playThrough || v.choking) continue;
       v.choking = true;
       v.chokeFrames = chokeFrames;
       v.chokePos = 0;
     }
   }
 
-  _trigger({ sampleId, startFrame, endFrame, gain, playThrough }) {
+  _trigger({ sampleId, startFrame, endFrame, gain, playThrough, chokeGroup }) {
     const channels = this.samples.get(sampleId);
     if (!channels || !channels[0]) return;
-    this._chokeInterruptible();
+    this._chokeInterruptible(chokeGroup);
     const len = channels[0].length;
     this.voices.push({
       channels,
@@ -77,6 +77,7 @@ class SamplerProcessor extends AudioWorkletProcessor {
       chokeFrames: 0,
       chokePos: 0,
       playThrough: !!playThrough,
+      chokeGroup,
     });
   }
 

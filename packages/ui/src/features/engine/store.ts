@@ -9,11 +9,15 @@ interface TransportState {
   playheadByTrack: Record<string, number>;
   selectionByTrack: Record<string, Region | null>;
   isPlaying: boolean;
+  arrangementPlayheadMs: number;
+  arrangementPlaying: boolean;
 
   setActiveTrackId: (id: string | null) => void;
   setPlayhead: (trackId: string, t: number) => void;
   setSelection: (r: Region | null) => void;
   setPlaying: (v: boolean) => void;
+  setArrangementPlayhead: (ms: number) => void;
+  setArrangementPlaying: (playing: boolean) => void;
   reset: () => void;
 }
 
@@ -22,6 +26,8 @@ export const useTransport = create<TransportState>((set, get) => ({
   playheadByTrack: {},
   selectionByTrack: {},
   isPlaying: false,
+  arrangementPlayheadMs: 0,
+  arrangementPlaying: false,
 
   setActiveTrackId: (id) => {
     const prev = get().activeTrackId;
@@ -45,12 +51,19 @@ export const useTransport = create<TransportState>((set, get) => ({
 
   setPlaying: (isPlaying) => set({ isPlaying }),
 
+  setArrangementPlayhead: (arrangementPlayheadMs) =>
+    set({ arrangementPlayheadMs: Math.max(0, arrangementPlayheadMs) }),
+
+  setArrangementPlaying: (arrangementPlaying) => set({ arrangementPlaying }),
+
   reset: () =>
     set({
       activeTrackId: null,
       playheadByTrack: {},
       selectionByTrack: {},
       isPlaying: false,
+      arrangementPlayheadMs: 0,
+      arrangementPlaying: false,
     }),
 }));
 

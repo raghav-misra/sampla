@@ -26,6 +26,19 @@ export const Sample = z.object({
 });
 export type Sample = z.infer<typeof Sample>;
 
+// Instruments are reusable sound-producing primitives. The backing Sample is
+// a server-side media asset; this object is the user's reusable sampler setup.
+export const YouTubeSamplerInstrument = z.object({
+  id: z.string(),
+  type: z.literal("youtube-sampler"),
+  sampleId: z.string(),
+  createdAt: z.string(),
+});
+export type YouTubeSamplerInstrument = z.infer<typeof YouTubeSamplerInstrument>;
+
+export const Instrument = z.discriminatedUnion("type", [YouTubeSamplerInstrument]);
+export type Instrument = z.infer<typeof Instrument>;
+
 // A Project is a "sampled song" — the top-level user artifact. It contains
 // one or more Tracks.
 export const Project = z.object({
@@ -35,12 +48,12 @@ export const Project = z.object({
 });
 export type Project = z.infer<typeof Project>;
 
-// A Track is one row in a Project. It binds a single Sample as its instrument
-// and owns its own set of Slices (pad bindings) and Recordings.
+// A Track is one row in a Project. It references one reusable Instrument and
+// owns its own set of Slices (pad bindings) and Recordings.
 export const Track = z.object({
   id: z.string(),
   projectId: z.string(),
-  sampleId: z.string(),
+  instrumentId: z.string(),
   name: z.string().optional(),
   order: z.number(),
   createdAt: z.string(),
@@ -80,6 +93,17 @@ export const Recording = z.object({
   createdAt: z.string(),
 });
 export type Recording = z.infer<typeof Recording>;
+
+// A Clip places a Recording on a Track's arrangement timeline. Multiple clips
+// may reference the same recording and can be moved independently.
+export const Clip = z.object({
+  id: z.string(),
+  trackId: z.string(),
+  recordingId: z.string(),
+  startMs: z.number().nonnegative(),
+  createdAt: z.string(),
+});
+export type Clip = z.infer<typeof Clip>;
 
 export const JobStatus = z.enum(["queued", "running", "done", "error"]);
 export type JobStatus = z.infer<typeof JobStatus>;

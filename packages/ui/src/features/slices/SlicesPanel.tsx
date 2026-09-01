@@ -37,7 +37,7 @@ export function SlicesPanel({ trackId, slices, ready, onTrigger }: Props) {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(10, minmax(0, 1fr))",
+          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
           gap: 6,
         }}
       >

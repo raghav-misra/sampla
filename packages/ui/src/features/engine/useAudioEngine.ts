@@ -85,10 +85,15 @@ export const useAudioEngine = (
     if (!el) return;
     el.currentTime = currentPlayhead();
     stopAtRef.current = null;
-    void el.play().then(() => {
-      useTransport.getState().setPlaying(true);
-      startRafLoop();
-    });
+    void el.play()
+      .then(() => {
+        useTransport.getState().setPlaying(true);
+        startRafLoop();
+      })
+      .catch((error: unknown) => {
+        useTransport.getState().setPlaying(false);
+        console.error("[audio] playback failed", error);
+      });
   };
 
   const playSelection = (): void => {
@@ -98,10 +103,15 @@ export const useAudioEngine = (
     el.currentTime = sel.startSec;
     useTransport.getState().setPlayhead(trackId, sel.startSec);
     stopAtRef.current = sel.endSec;
-    void el.play().then(() => {
-      useTransport.getState().setPlaying(true);
-      startRafLoop();
-    });
+    void el.play()
+      .then(() => {
+        useTransport.getState().setPlaying(true);
+        startRafLoop();
+      })
+      .catch((error: unknown) => {
+        useTransport.getState().setPlaying(false);
+        console.error("[audio] playback failed", error);
+      });
   };
 
   const pause = (): void => {

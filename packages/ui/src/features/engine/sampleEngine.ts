@@ -86,7 +86,13 @@ class SampleEngine {
     return p;
   }
 
-  play(sampleId: string, region: Region, gain = 1, playThrough = false): void {
+  play(
+    sampleId: string,
+    region: Region,
+    gain = 1,
+    playThrough = false,
+    chokeGroup = sampleId,
+  ): void {
     if (!this.node || !this.samplesLoaded.has(sampleId)) return;
     const sr = this.trackSampleRate || this.ctx?.sampleRate || 48000;
     const startFrame = Math.max(0, Math.floor(region.startSec * sr));
@@ -98,6 +104,7 @@ class SampleEngine {
       endFrame,
       gain,
       playThrough,
+      chokeGroup,
     });
   }
 

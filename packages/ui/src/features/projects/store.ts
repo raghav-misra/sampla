@@ -25,7 +25,7 @@ interface ProjectsState {
   removeProject: (id: string) => Promise<void>;
   setActiveProject: (id: string | null) => void;
 
-  addTrackForSample: (projectId: string, sampleId: string) => Promise<Track>;
+  addTrack: (projectId: string, instrumentId: string) => Promise<Track>;
   removeTrack: (projectId: string, trackId: string) => Promise<void>;
   reorderTracks: (projectId: string, orderedIds: string[]) => Promise<void>;
   renameTrack: (projectId: string, trackId: string, name: string) => Promise<void>;
@@ -112,12 +112,12 @@ export const useProjects = create<ProjectsState>((set, get) => ({
 
   setActiveProject: (id) => set({ activeProjectId: id }),
 
-  addTrackForSample: async (projectId, sampleId) => {
+  addTrack: async (projectId, instrumentId) => {
     const existing = get().tracksByProject[projectId] ?? [];
     const track: Track = {
       id: randomId("t"),
       projectId,
-      sampleId,
+      instrumentId,
       order: existing.length,
       createdAt: new Date().toISOString(),
     };
